@@ -46,7 +46,7 @@ Two things worth knowing before you pick numbers:
 
 Of 10 pieces of text I wrote myself (varied topic and style), at most 1 is labeled high-confidence AI.
 
-**Why this target:** A wrong accusation costs a real writer trust in the platform and possibly their reputation on it. A missed detection just means one piece of AI text got through. Those costs aren't close to equal, so the target for the expensive error is strict — 1 in 10, not something looser like 3 in 10.
+**Why this target:** A wrong accusation certainly doubts a real person's integrity, while a missed detection (a false negative) isn't a big deal when it's just a post getting through. Those two costs aren't equal, so the target for the expensive error is strict — 1 in 10, not something looser.
 
 ---
 
@@ -70,7 +70,7 @@ All three labels — high-confidence human, unsure, high-confidence AI — are e
 
 10 out of 10 test appeals against real content_ids change that item's status to `under_review` and show up in `GET /log` immediately afterward.
 
-**Why this target:** The appeal is the only thing standing between a wrong guess and a real consequence for the writer behind it. It has to work every single time, not "usually" — there's no acceptable failure rate for the one safety valve in the system.
+**Why this target:** There's no prediction happening during this path — no model, no uncertainty, just a lookup and a log write. Unlike the detection scores, nothing here is reasonably allowed to be probabilistic, so it should reasonably be 10/10, not a tolerance.
 
 ---
 
