@@ -30,6 +30,9 @@ from flask import Flask, jsonify, request
 
 import audit
 import config
+import detector
+import scoring
+import stylometry
 
 app = Flask(__name__)
 
@@ -200,16 +203,66 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
     payload = request.get_json(silent=True) or {}
+    text = payload.get("text")
+    creator_id = payload.get("creator_id")
 
-    # TODO: delete this and build the route.
+    if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(creator_id=creator_id or "unknown", reason="missing_text")
+        return jsonify({
+            "error": "missing_text",
+            "message": "`text` is required and can't be empty.",
+        }), 400
+
+    if not isinstance(creator_id, str) or not creator_id.strip():
+        audit.log_rejection(creator_id="unknown", reason="missing_creator_id")
+        return jsonify({
+            "error": "missing_creator_id",
+            "message": "`creator_id` is required and can't be empty.",
+        }), 400
+
+    content_id = str(uuid.uuid4())
+
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError:
+        # Text parsed fine but is too short for the model to score (a few
+        # tokens or fewer) — not a crash, just not enough signal to judge.
+        audit.log_rejection(
+            creator_id=creator_id, reason="text_too_short", content_id=content_id
+        )
+        return jsonify({
+            "error": "text_too_short",
+            "message": "That's too short to score — a few sentences at least.",
+        }), 400
+    except detector.DetectorUnavailable as exc:
+        audit.log_rejection(
+            creator_id=creator_id, reason="detector_unavailable", content_id=content_id
+        )
+        return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
+
+    style_score = stylometry.style_signal(text)
+    combined = scoring.combine_signals(model_score, style_score)
+    guess, label_text = scoring.score_to_label(combined)
+
+    audit.log_decision(
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        style_score=style_score,
+        combined_score=combined,
+        label=label_text,
+        status="decided",
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
+        "content_id": content_id,
+        "guess": guess,
+        "confidence": combined,
+        "label": label_text,
+        "model_score": model_score,
+        "style_score": style_score,
+    })
 
 
 @app.post("/appeal")
@@ -233,13 +286,37 @@ def appeal():
     wrong accusation and nothing at all.
     """
     payload = request.get_json(silent=True) or {}
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
 
-    # TODO: delete this and build the route.
+    if not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({
+            "error": "missing_content_id",
+            "message": "`content_id` is required.",
+        }), 400
+
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({
+            "error": "missing_reasoning",
+            "message": "`reasoning` is required — tell us why you think this is wrong.",
+        }), 400
+
+    existing = audit.entries_for(content_id)
+    if not existing:
+        return jsonify({
+            "error": "not_found",
+            "message": f"No submission found with content_id '{content_id}'.",
+        }), 404
+
+    creator_id = existing[0].get("creator_id", "unknown")
+    audit.log_appeal(content_id=content_id, creator_id=creator_id, reasoning=reasoning)
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "ok": True,
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "Appeal recorded. This submission is now under review.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────

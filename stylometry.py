@@ -63,9 +63,19 @@ def sentence_length_spread(text: str) -> float:
     Watch the edge case: a one-sentence submission has no spread at all, and
     `stdev` raises on fewer than two values. Decide what that should return
     before the attack set decides for you.
+
+    Decision: coefficient of variation (stdev / mean) of words-per-sentence.
+    Fewer than two sentences -> 0.0 (no evidence either way, not "AI-ish").
+    Higher = more varied = more human-ish (gets flipped in style_signal).
     """
-    # TODO: replace this
-    return 0.0
+    lengths = [len(words(s)) for s in sentences(text)]
+    lengths = [n for n in lengths if n > 0]
+    if len(lengths) < 2:
+        return 0.0
+    mean = statistics.mean(lengths)
+    if mean == 0:
+        return 0.0
+    return statistics.stdev(lengths) / mean
 
 
 def type_token_ratio(text: str) -> float:
@@ -79,9 +89,14 @@ def type_token_ratio(text: str) -> float:
     longer, because common words repeat. Two texts of different lengths aren't
     directly comparable on it, and if your test inputs vary a lot in length,
     that alone can look like a signal.
+
+    Decision: unique words / total words, lowercased. Empty text -> 0.0.
+    Higher = more varied vocabulary = more human-ish (gets flipped below).
     """
-    # TODO: replace this
-    return 0.0
+    ws = words(text)
+    if not ws:
+        return 0.0
+    return len(set(ws)) / len(ws)
 
 
 def punctuation_density(text: str) -> float:
@@ -93,9 +108,18 @@ def punctuation_density(text: str) -> float:
         semicolons, dashes — is a real choice. Semicolons and em dashes are
         more interesting than full stops, because they vary more between
         writers.
+
+    Decision: count the "expressive" marks only — semicolons, colons, em
+    dashes, double-hyphen dashes, ellipses, "!" and "?" — not plain periods
+    or commas, because those vary least between writers. Returns count per
+    100 words. Empty text -> 0.0. Higher = more human-ish (gets flipped
+    below).
     """
-    # TODO: replace this
-    return 0.0
+    ws = words(text)
+    if not ws:
+        return 0.0
+    marks = re.findall(r"[;:?!]|--|—|\.\.\.", text)
+    return len(marks) / len(ws) * 100
 
 
 # ── Combining them ───────────────────────────────────────────────────────────
@@ -121,9 +145,23 @@ def style_signal(text: str) -> float:
     clearly human, plain conventional human writing, lightly-edited AI — before
     you trust it. Plain and ordinary, not formal: formal prose reads as *human*
     to signal one, and it is plain writing that gets accused.
+
+    Decision: all three raw measures point "higher = more human", so each
+    gets flipped (1 - x) after scaling to 0-1, then averaged equally.
+    Scaling caps: spread at 1.2 (coefficient of variation rarely exceeds
+    this even for erratic writing), punctuation density at 5 per 100 words.
+    Both caps come from eyeballing the four calibration inputs, not theory.
     """
-    # TODO: replace this
-    return 0.5
+    spread = min(sentence_length_spread(text) / 1.2, 1.0)
+    ttr = type_token_ratio(text)
+    punct = min(punctuation_density(text) / 5.0, 1.0)
+
+    ai_from_spread = 1.0 - spread
+    ai_from_ttr = 1.0 - ttr
+    ai_from_punct = 1.0 - punct
+
+    score = (ai_from_spread + ai_from_ttr + ai_from_punct) / 3
+    return round(min(max(score, 0.0), 1.0), 4)
 
 
 if __name__ == "__main__":

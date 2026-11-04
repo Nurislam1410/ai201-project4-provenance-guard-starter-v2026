@@ -42,63 +42,43 @@ Two things worth knowing before you pick numbers:
   a **miss**.
 
 ---
-## 1.
+## 1. False positives
 
-<!-- Your criterion. It must name a number. -->
+Of 10 pieces of text I wrote myself (varied topic and style), at most 1 is labeled high-confidence AI.
 
-
-
-**Why this target:**
-
-
+**Why this target:** A wrong accusation costs a real writer trust in the platform and possibly their reputation on it. A missed detection just means one piece of AI text got through. Those costs aren't close to equal, so the target for the expensive error is strict — 1 in 10, not something looser like 3 in 10.
 
 ---
 
-## 2.
+## 2. Score spread
 
-<!-- Your criterion. -->
+Clearly-AI-generated text (raw GPT-2 output, no editing) averages at least 0.30 higher on the combined score than clearly-human text I wrote myself, across the same topic.
 
-
-
-**Why this target:**
-
-
+**Why this target:** If the two kinds of text land close together, the system isn't measuring anything real — it's just noise with extra steps. 0.30 is roughly the width of the "unsure" band itself, so clearing it means the system is doing more than defaulting to "unsure" on everything.
 
 ---
 
-## 3.
+## 3. Label coverage
 
-<!-- Your criterion. -->
+All three labels — high-confidence human, unsure, high-confidence AI — are each produced by at least one real test submission, not just shown to be reachable by the threshold math.
 
-
-
-**Why this target:**
-
-
+**Why this target:** A label that only exists on paper is a bug waiting to be found by whoever reads the code next, and unit 8's attack set will find it before I do if I don't check it myself now.
 
 ---
 
-## 4.
+## 4. The appeal path
 
-<!-- Your criterion. -->
+10 out of 10 test appeals against real content_ids change that item's status to `under_review` and show up in `GET /log` immediately afterward.
 
-
-
-**Why this target:**
-
-
+**Why this target:** The appeal is the only thing standing between a wrong guess and a real consequence for the writer behind it. It has to work every single time, not "usually" — there's no acceptable failure rate for the one safety valve in the system.
 
 ---
 
-## 5.
+## 5. Bad input
 
-<!-- Your criterion. -->
+Missing `text` or `creator_id` returns a 400 with a clear error message in 100% of cases; a 50,000-character submission is scored (or cleanly rejected) without crashing the service, in 3 out of 3 tries.
 
-
-
-**Why this target:**
-
-
+**Why this target:** A crash on bad input doesn't just fail one request — it can take down the service for every writer behind it in the queue. That's a worse failure than a wrong guess, so it gets a zero-tolerance target instead of a rate.
 
 ---
 
