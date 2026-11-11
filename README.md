@@ -217,7 +217,7 @@ $ curl "http://127.0.0.1:5000/log?limit=10"
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 10 per minute, 200 per day
 
 **Why those numbers and not others:**
 <!-- Think about two people: a real writer submitting their own work a few
@@ -234,8 +234,10 @@ can look like one. -->
 <!-- python run_attacks.py --flood 15 -->
 
 ```
-
+200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
 ```
+
+5 of 15 were rate limited (full run: `results/flood_2026-11-10_2204.md`).
 
 ---
 
